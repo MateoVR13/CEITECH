@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css');
+
+body {
+  font-family: 'Inter', 'sans-serif';
+  @apply bg-dark-900 text-gray-300;
+}
+
+#root {
+  min-height: 100vh;
+  isolation: isolate; /* Create new stacking context */
+}
+
+h1, h2, h3 {
+    @apply font-grotesk text-gray-100;
+}
+
+/* Dark glassmorphism for cards */
+.glass-card {
+  background: rgba(22, 27, 34, 0.6); /* dark-800 */
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  @apply rounded-2xl border border-dark-700;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Header glassmorphism */
+.header-glass {
+  background: rgba(13, 17, 23, 0.7); /* dark-900 */
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  @apply border-b border-dark-700;
+}
+
+
+.action-button {
+  @apply px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition-all duration-200 ease-out transform active:scale-[0.97] relative overflow-hidden isolate;
+}
+
+.action-button-primary {
+    @apply bg-brand-blue border-b-4 border-brand-darkblue;
+}
+.action-button-primary:hover {
+    @apply bg-blue-500 -translate-y-0.5;
+}
+.action-button-primary:active {
+    @apply border-b-2;
+}
+
+
+.action-button-secondary {
+    background: rgba(33, 38, 45, 0.8);
+    @apply border border-dark-600;
+}
+
+.action-button-secondary:hover {
+    @apply bg-dark-700 -translate-y-0.5;
+}
+
+/* Shine effect for buttons */
+.action-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 75%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0) 100%);
+  transform: skewX(-25deg);
+  transition: left .8s cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: -1;
+}
+
+.action-button:hover::before {
+  left: 150%;
+}
+
+
+.glass-input {
+   background: rgba(33, 38, 45, 0.7); /* dark-700 */
+   @apply border border-dark-600;
+   transition: all 0.2s ease-in-out;
+}
+
+.glass-input:focus {
+    background: rgba(22, 27, 34, 0.8); /* dark-800 */
+    @apply border-brand-blue;
+}
+
+.glass-input::placeholder {
+   @apply text-gray-500;
+ }
+
+ .text-glow {
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.3), 0 0 20px rgba(59, 130, 246, 0.2);
+ }
+ .text-shadow-sm {
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+ }
+
+/* === Animated Orbs Background === */
+.background-orbs-container {
+  @apply fixed inset-0 -z-10 overflow-hidden;
+}
+
+.orb {
+  @apply absolute rounded-full;
+  filter: blur(140px);
+}
+
+.orb-1 {
+  background-color: rgba(60, 140, 251, 0.4); /* Orange */
+  width: 45vmax;
+  height: 45vmax;
+  top: -20vh;
+  left: -15vw;
+  animation: orb-breathe-1 25s ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  background-color: rgba(74, 222, 128, 0.35); /* Green */
+  width: 35vmax;
+  height: 35vmax;
+  bottom: -10vh;
+  right: -10vw;
+  animation: orb-breathe-2 20s ease-in-out infinite alternate;
+  animation-delay: -8s;
+}
+
+.orb-3 {
+  background-color: rgba(250, 204, 21, 0.3); /* Yellow */
+  width: 30vmax;
+  height: 30vmax;
+  top: 40vh;
+  right: 20vw;
+  animation: orb-breathe-3 30s ease-in-out infinite alternate;
+  animation-delay: -15s;
+}
+
+@keyframes orb-breathe-1 {
+  from {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.4;
+  }
+  to {
+    transform: translate(20vw, 25vh) scale(1.1);
+    opacity: 0.6;
+  }
+}
+
+@keyframes orb-breathe-2 {
+  from {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  to {
+    transform: translate(-15vw, -20vh) scale(0.9);
+    opacity: 0.5;
+  }
+}
+
+@keyframes orb-breathe-3 {
+  from {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  to {
+    transform: translate(10vw, -10vh) scale(1.2);
+    opacity: 0.45;
+  }
+}
