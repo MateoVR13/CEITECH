@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación: Control de Calidad</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+        :root {
+            --bg-color: #111827;
+            --surface-color: #1f2937;
+            --border-color: #374151;
+            --text-color: #d1d5db;
+            --accent-color: #3b82f6;
+            --good-color: #22c55e;
+            --bad-color: #ef4444;
+            --good-glow: rgba(34, 197, 94, 0.5);
+            --bad-glow: rgba(239, 68, 68, 0.5);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .simulation-container {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .controls {
+            margin: 1.5rem 0;
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .controls button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .controls button:hover {
+            background-color: #2563eb;
+        }
+
+        .controls button:active {
+            transform: scale(0.97);
+        }
+        
+        .controls button#stop-btn {
+            background-color: #d97706;
+        }
+        .controls button#stop-btn:hover {
+            background-color: #b45309;
+        }
+
+        .controls button#reset-btn {
+            background-color: #6b7280;
+        }
+         .controls button#reset-btn:hover {
+            background-color: #4b5563;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background-color: #111827;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-item span {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+        .stat-item span#total-count { color: #fff; }
+        .stat-item span#good-count { color: var(--good-color); }
+        .stat-item span#bad-count { color: var(--bad-color); }
+
+        .stat-item p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+        
+        .conveyor-wrapper {
+            position: relative;
+            height: 150px;
+            width: 100%;
+            background-color: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #conveyor-belt {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: #4b5563;
+            border-top: 2px solid #374151;
+            border-bottom: 2px solid #374151;
+        }
+
+        .scanner {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.2), transparent);
+            border-left: 2px dashed rgba(59, 130, 246, 0.3);
+            border-right: 2px dashed rgba(59, 130, 246, 0.3);
+        }
+        
+        .scanner::before {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 10px;
+            background-color: #9ca3af;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #9ca3af;
+            transition: background-color 0.1s, box-shadow 0.1s;
+        }
+        
+        .scanner.scan-good::before {
+             background-color: var(--good-color);
+             box-shadow: 0 0 15px var(--good-glow);
+        }
+        .scanner.scan-bad::before {
+             background-color: var(--bad-color);
+             box-shadow: 0 0 15px var(--bad-glow);
+        }
+        
+        .product {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            bottom: 60px; /* Sobre la cinta */
+            left: -50px;
+            background-size: cover;
+            animation: move-product 8s linear;
+        }
+
+        @keyframes move-product {
+            from { transform: translateX(0); }
+            to { transform: translateX(950px); }
+        }
+
+        .product--good {
+            background-color: var(--good-color);
+            box-shadow: 0 0 10px var(--good-glow);
+        }
+
+        .product--defective {
+            background-color: var(--bad-color);
+            box-shadow: 0 0 10px var(--bad-glow);
+        }
+        
+        .product.rejected {
+            animation: reject-product 1s forwards;
+        }
+        
+        @keyframes reject-product {
+            from { transform: translateY(0) rotate(0); opacity: 1; }
+            to { transform: translateY(100px) rotate(45deg); opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="simulation-container">
+    <h1>Simulación: Control de Calidad con Visión Artificial</h1>
+    <p>La cinta transportadora mueve productos. Un escáner de IA los inspecciona y descarta los defectuosos.</p>
+    
+    <div class="controls">
+        <button id="start-btn">▶ Iniciar</button>
+        <button id="stop-btn">❚❚ Detener</button>
+        <button id="reset-btn">↺ Reiniciar</button>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span id="total-count">0</span>
+            <p>Total Inspeccionado</p>
+        </div>
+        <div class="stat-item">
+            <span id="good-count">0</span>
+            <p>Aprobados</p>
+        </div>
+        <div class="stat-item">
+            <span id="bad-count">0</span>
+            <p>Rechazados</p>
+        </div>
+    </div>
+
+    <div class="conveyor-wrapper">
+        <div class="scanner" id="scanner"></div>
+        <div id="conveyor-belt"></div>
+        <!-- Los productos se añadirán aquí con JS -->
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const conveyorBelt = document.getElementById('conveyor-belt');
+        const scanner = document.getElementById('scanner');
+        
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        const totalCountEl = document.getElementById('total-count');
+        const goodCountEl = document.getElementById('good-count');
+        const badCountEl = document.getElementById('bad-count');
+
+        let productCreationInterval;
+        let inspectionInterval;
+        
+        let totalCount = 0;
+        let goodCount = 0;
+        let badCount = 0;
+        
+        let isRunning = false;
+
+        function createProduct() {
+            const product = document.createElement('div');
+            product.classList.add('product');
+            const isDefective = Math.random() < 0.2; // 20% de probabilidad de ser defectuoso
+            
+            if (isDefective) {
+                product.classList.add('product--defective');
+            } else {
+                product.classList.add('product--good');
+            }
+            
+            conveyorBelt.appendChild(product);
+            
+            // Limpieza: eliminar el producto del DOM cuando termina su animación
+            product.addEventListener('animationend', () => {
+                if (product.parentNode === conveyorBelt) {
+                    conveyorBelt.removeChild(product);
+                }
+            });
+        }
+        
+        function inspectProducts() {
+            const products = document.querySelectorAll('.product:not(.inspected)');
+            const scannerRect = scanner.getBoundingClientRect();
+
+            products.forEach(product => {
+                const productRect = product.getBoundingClientRect();
+                
+                // Comprobar si el producto está bajo el escáner
+                const isUnderScanner = productRect.left < scannerRect.right && productRect.right > scannerRect.left;
+
+                if (isUnderScanner) {
+                    product.classList.add('inspected');
+                    totalCount++;
+                    
+                    const isDefective = product.classList.contains('product--defective');
+                    
+                    if (isDefective) {
+                        badCount++;
+                        scanner.classList.add('scan-bad');
+                        // La propiedad 'animationName' es para reiniciar la animación de movimiento
+                        // para que la de rechazo pueda tomar el control.
+                        product.style.animationName = 'none';
+                        setTimeout(() => product.classList.add('rejected'), 50);
+                    } else {
+                        goodCount++;
+                        scanner.classList.add('scan-good');
+                    }
+                    
+                    updateStats();
+                    
+                    // Quitar el efecto visual del escáner
+                    setTimeout(() => {
+                        scanner.classList.remove('scan-good', 'scan-bad');
+                    }, 200);
+                }
+            });
+        }
+
+        function updateStats() {
+            totalCountEl.textContent = totalCount;
+            goodCountEl.textContent = goodCount;
+            badCountEl.textContent = badCount;
+        }
+
+        function startSimulation() {
+            if (isRunning) return;
+            isRunning = true;
+            productCreationInterval = setInterval(createProduct, 2000); // Crea un producto cada 2 segundos
+            inspectionInterval = setInterval(inspectProducts, 100); // Inspecciona continuamente
+        }
+
+        function stopSimulation() {
+            if (!isRunning) return;
+            isRunning = false;
+            clearInterval(productCreationInterval);
+            clearInterval(inspectionInterval);
+        }
+
+        function resetSimulation() {
+            stopSimulation();
+            totalCount = 0;
+            goodCount = 0;
+            badCount = 0;
+            updateStats();
+            conveyorBelt.innerHTML = ''; // Elimina todos los productos
+        }
+        
+        startBtn.addEventListener('click', startSimulation);
+        stopBtn.addEventListener('click', stopSimulation);
+        resetBtn.addEventListener('click', resetSimulation);
+    });
+</script>
+
+</body>
+</html>

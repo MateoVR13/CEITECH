@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación: Detección Preventiva de Enfermedades con IA</title>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+        :root {
+            --bg-color: #111827;
+            --surface-color: #1f2937;
+            --border-color: #374151;
+            --text-color: #d1d5db;
+            --accent-color: #3b82f6;
+            --status-good: #22c55e;
+            --status-warn: #f59e0b;
+            --status-bad: #ef4444;
+        }
+
+        body, html {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .simulation-container {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 1300px;
+            height: 95%;
+            max-height: 800px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        h1 {
+            margin: 0;
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            gap: 1.5rem;
+            min-height: 0;
+        }
+
+        /* --- Panel de Imagen y Escáner --- */
+        .image-panel {
+            flex: 1.8;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .image-container {
+            flex-grow: 1;
+            position: relative;
+            cursor: crosshair;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        #leaf-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: filter 0.5s ease;
+        }
+        /* Filtros para capas de análisis */
+        #leaf-image.filter-chlorophyll { filter: grayscale(1) contrast(2.5) hue-rotate(90deg) brightness(0.8); }
+        #leaf-image.filter-water { filter: contrast(1.5) sepia(0.8) hue-rotate(180deg) saturate(2); }
+
+        #scanner {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.3);
+            backdrop-filter: brightness(1.1);
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* Permite que eventos pasen a la imagen */
+            transition: border-color 0.2s;
+        }
+        #scanner.hotspot-active { border-color: var(--status-warn); }
+
+        .hotspot {
+            position: absolute;
+            border-radius: 50%;
+            /* background: rgba(255, 255, 0, 0.3); Descomentar para debug */
+        }
+
+        .controls { display: flex; gap: 0.5rem; }
+        .controls button {
+            flex-grow: 1;
+            padding: 0.6rem; font-size: 0.9rem; font-weight: 500;
+            background-color: #111827; border: 1px solid var(--border-color); color: var(--text-color);
+            border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .controls button:hover { background-color: var(--surface-color); }
+        .controls button.active { background-color: var(--accent-color); border-color: var(--accent-color); color: white; }
+
+        /* --- Panel de Resultados --- */
+        .results-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 320px;
+            min-height: 0;
+        }
+
+        .card { background-color: #111827; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.25rem; }
+        .card h3 { margin: 0 0 1rem 0; font-size: 1.2rem; }
+
+        .health-score { text-align: center; }
+        .health-score .score { font-size: 3rem; font-family: 'Space Grotesk'; font-weight: 700; color: var(--status-good); }
+        .health-score .label { color: #9ca3af; }
+        
+        .live-analysis p { margin: 0; }
+        .live-analysis #scanner-status { font-weight: 700; min-height: 24px; }
+        
+        .findings-log { flex-grow: 1; min-height: 0; overflow-y: auto; padding-right: 5px; }
+        .findings-log ul { list-style: none; padding: 0; margin: 0; }
+        .findings-log li { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border-radius: 6px; background-color: var(--surface-color); margin-bottom: 0.5rem; }
+        .finding-icon { font-size: 1.2rem; margin-top: 2px; }
+        .finding-text { font-size: 0.9rem; }
+        .finding-text strong { display: block; color: white; }
+        
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-content { flex-direction: column; }
+            .results-panel { min-width: unset; }
+            .simulation-container { height: 98%; padding: 1rem; overflow-y: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="simulation-container">
+    <h1>Estación de Diagnóstico Preventivo por IA</h1>
+    <div class="main-content">
+        <div class="image-panel">
+            <div class="image-container" id="image-container">
+                <img id="leaf-image" src="https://blog.plantwise.org/wp-content/uploads/sites/7/2013/02/coffee-rust.png" alt="Hoja de planta">
+                <div id="scanner"></div>
+                <!-- Hotspots invisibles que la IA detectará -->
+                <div class="hotspot" data-id="1" style="top: 25%; left: 30%; width: 15%; height: 20%;"></div>
+                <div class="hotspot" data-id="2" style="top: 60%; left: 70%; width: 12%; height: 18%;"></div>
+                <div class="hotspot" data-id="3" style="top: 75%; left: 20%; width: 10%; height: 15%;"></div>
+            </div>
+            <div class="controls">
+                <button id="btn-rgb" class="active">Vista Normal (RGB)</button>
+                <button id="btn-chloro">Análisis de Clorofila</button>
+                <button id="btn-water">Análisis de Estrés Hídrico</button>
+            </div>
+        </div>
+
+        <div class="results-panel">
+            <div class="card health-score">
+                <span class="score" id="health-score">97.8%</span>
+                <p class="label">Puntaje de Salud General</p>
+            </div>
+            <div class="card live-analysis">
+                <h3>Análisis del Escáner en Vivo</h3>
+                <p id="scanner-status" style="color: var(--status-good);">✅ Sin anomalías detectadas</p>
+            </div>
+            <div class="card findings-log">
+                <h3>Registro de Hallazgos</h3>
+                <ul id="findings-list">
+                    <li style="justify-content: center; color: #9ca3af;">Mueva el escáner sobre la hoja para analizar.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- ELEMENTOS DEL DOM ---
+    const imageContainer = document.getElementById('image-container');
+    const leafImage = document.getElementById('leaf-image');
+    const scanner = document.getElementById('scanner');
+    const hotspots = document.querySelectorAll('.hotspot');
+    const scannerStatus = document.getElementById('scanner-status');
+    const findingsList = document.getElementById('findings-list');
+    
+    // --- DATOS DE LOS HOTSPOTS (LO QUE "SABE" LA IA) ---
+    const HOTSPOT_DATA = {
+        1: { icon: '⚠️', title: 'Estrés Nutricional Leve', text: 'Detectada una ligera deficiencia de clorofila. Sugiere posible falta de nitrógeno. Aún no visible.', type: 'warn' },
+        2: { icon: '💧', title: 'Inicio de Estrés Hídrico', text: 'Se observa una disminución en la turgencia celular. Imperceptible a simple vista.', type: 'warn' },
+        3: { icon: '🔬', title: 'Firma Fúngica Temprana', text: 'Detectados patrones espectrales consistentes con esporas de Mildiu velloso. Etapa pre-sintomática.', type: 'bad' }
+    };
+    
+    const state = {
+        foundHotspots: new Set()
+    };
+
+    // --- LÓGICA DEL ESCÁNER ---
+    imageContainer.addEventListener('mousemove', function(e) {
+        const rect = imageContainer.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        scanner.style.left = `${x}px`;
+        scanner.style.top = `${y}px`;
+        checkHotspots(x, y);
+    });
+
+    imageContainer.addEventListener('mouseleave', function() {
+        scanner.style.display = 'none';
+    });
+     imageContainer.addEventListener('mouseenter', function() {
+        scanner.style.display = 'block';
+    });
+    
+    function checkHotspots(scannerX, scannerY) {
+        let activeHotspot = null;
+        hotspots.forEach(function(hotspot) {
+            const hRect = hotspot.getBoundingClientRect();
+            const cRect = imageContainer.getBoundingClientRect();
+            // Coordenadas relativas al contenedor
+            const hX = hRect.left - cRect.left + hRect.width / 2;
+            const hY = hRect.top - cRect.top + hRect.height / 2;
+            const hRadius = hRect.width / 2;
+            
+            const distance = Math.sqrt(Math.pow(scannerX - hX, 2) + Math.pow(scannerY - hY, 2));
+            
+            if (distance < hRadius + scanner.offsetWidth / 2) {
+                activeHotspot = hotspot.dataset.id;
+            }
+        });
+
+        if (activeHotspot) {
+            const data = HOTSPOT_DATA[activeHotspot];
+            scannerStatus.textContent = `${data.icon} ${data.title}`;
+            scannerStatus.style.color = `var(--status-${data.type})`;
+            scanner.classList.add('hotspot-active');
+            
+            if (!state.foundHotspots.has(activeHotspot)) {
+                logFinding(activeHotspot);
+                state.foundHotspots.add(activeHotspot);
+            }
+        } else {
+            scannerStatus.textContent = `✅ Sin anomalías detectadas`;
+            scannerStatus.style.color = `var(--status-good)`;
+            scanner.classList.remove('hotspot-active');
+        }
+    }
+
+    function logFinding(hotspotId) {
+        if (state.foundHotspots.size === 0) {
+            findingsList.innerHTML = ''; // Limpiar mensaje inicial
+        }
+        const data = HOTSPOT_DATA[hotspotId];
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="finding-icon">${data.icon}</span>
+            <div class="finding-text">
+                <strong>${data.title}</strong>
+                <span>${data.text}</span>
+            </div>
+        `;
+        findingsList.prepend(li);
+    }
+    
+    // --- LÓGICA DE CONTROLES DE CAPAS ---
+    const buttons = {
+        rgb: document.getElementById('btn-rgb'),
+        chloro: document.getElementById('btn-chloro'),
+        water: document.getElementById('btn-water')
+    };
+    
+    function setActiveButton(btnKey) {
+        Object.values(buttons).forEach(btn => btn.classList.remove('active'));
+        buttons[btnKey].classList.add('active');
+    }
+    
+    buttons.rgb.addEventListener('click', function() {
+        leafImage.className = '';
+        setActiveButton('rgb');
+    });
+    buttons.chloro.addEventListener('click', function() {
+        leafImage.className = 'filter-chlorophyll';
+        setActiveButton('chloro');
+    });
+    buttons.water.addEventListener('click', function() {
+        leafImage.className = 'filter-water';
+        setActiveButton('water');
+    });
+});
+</script>
+
+</body>
+</html>

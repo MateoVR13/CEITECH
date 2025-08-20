@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación: Modelo Predictivo Agrícola</title>
+    
+    <!-- Dependencia de Chart.js para los gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+        :root {
+            --bg-color: #111827;
+            --surface-color: #1f2937;
+            --border-color: #374151;
+            --text-color: #d1d5db;
+            --accent-color: #3b82f6;
+            --status-good: #22c55e;
+            --status-warn: #f59e0b;
+            --status-bad: #ef4444;
+        }
+
+        body, html {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .simulation-container {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 1400px;
+            height: 95%;
+            max-height: 850px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        h1 {
+            margin: 0;
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            gap: 1.5rem;
+            min-height: 0;
+        }
+
+        /* --- Panel de Control (Inputs) --- */
+        .control-panel {
+            flex: 1;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card {
+            background-color: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+
+        .input-group { margin-bottom: 1rem; }
+        .input-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 500; color: #9ca3af; }
+        .input-group select, .input-group input {
+            width: 100%;
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.6rem;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .run-button {
+            width: 100%;
+            padding: 0.8rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            font-family: 'Space Grotesk';
+            color: white;
+            background-color: var(--accent-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+        .run-button:hover { background-color: #2563eb; }
+        .run-button .spinner {
+            display: none;
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        .run-button.loading .spinner { display: block; }
+        .run-button.loading { cursor: not-allowed; background-color: #2563eb; }
+        @keyframes spin { 0% { transform: translateY(-50%) rotate(0deg); } 100% { transform: translateY(-50%) rotate(360deg); } }
+
+
+        /* --- Panel de Resultados (Dashboard) --- */
+        .dashboard-panel {
+            flex: 2.5;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-height: 0;
+        }
+
+        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .kpi-card { text-align: center; }
+        .kpi-card h3 { margin: 0 0 0.5rem 0; font-size: 1rem; color: #9ca3af; font-weight: 500; }
+        .kpi-value { font-size: 2rem; font-weight: 700; font-family: 'Space Grotesk'; }
+        #risk-value[data-risk="Bajo"] { color: var(--status-good); }
+        #risk-value[data-risk="Medio"] { color: var(--status-warn); }
+        #risk-value[data-risk="Alto"] { color: var(--status-bad); }
+
+        .chart-container { flex-grow: 1; min-height: 0; position: relative; }
+
+        .recommendations { flex-grow: 1; min-height: 0; overflow-y: auto; padding-right: 5px; }
+        .recommendations ul { list-style: none; padding: 0; margin: 0; }
+        .recommendations li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            background-color: var(--surface-color);
+            margin-bottom: 0.5rem;
+        }
+        .rec-icon { font-size: 1.5rem; }
+        .rec-text { font-size: 0.9rem; }
+        .rec-text strong { display: block; color: white; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .main-content { flex-direction: column; }
+            .dashboard-panel, .control-panel { flex: unset; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .simulation-container { height: 98%; padding: 1rem; overflow-y: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="simulation-container">
+    <h1>Simulador de Modelo Predictivo Agrícola</h1>
+    
+    <div class="main-content">
+        <div class="control-panel">
+            <div class="card">
+                <div class="input-group">
+                    <label for="crop-type">Tipo de Cultivo</label>
+                    <select id="crop-type">
+                        <option value="maize">Maíz</option>
+                        <option value="potato">Papa</option>
+                        <option value="coffee">Café</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="planting-date">Fecha de Siembra</label>
+                    <input type="date" id="planting-date">
+                </div>
+            </div>
+            <div class="card">
+                 <div class="input-group">
+                    <label for="soil-type">Tipo de Suelo</label>
+                    <select id="soil-type">
+                        <option value="loam">Franco</option>
+                        <option value="clay">Arcilloso</option>
+                        <option value="sandy">Arenoso</option>
+                    </select>
+                </div>
+                 <div class="input-group">
+                    <label for="soil-ph">pH del Suelo</label>
+                    <input type="number" id="soil-ph" value="6.5" step="0.1">
+                </div>
+            </div>
+            <div class="card">
+                 <div class="input-group">
+                    <label for="fertilizer-plan">Plan de Fertilización</label>
+                    <select id="fertilizer-plan">
+                        <option value="optimized">Optimizado</option>
+                        <option value="basic">Básico</option>
+                        <option value="organic">Orgánico</option>
+                    </select>
+                </div>
+            </div>
+            <button class="run-button" id="run-prediction-btn">
+                Ejecutar Predicción
+                <div class="spinner"></div>
+            </button>
+        </div>
+
+        <div class="dashboard-panel">
+            <div class="kpi-grid">
+                <div class="card kpi-card">
+                    <h3>Rendimiento Estimado</h3>
+                    <span class="kpi-value" id="yield-value">-- <span style="font-size: 1rem; color: #9ca3af;">ton/ha</span></span>
+                </div>
+                <div class="card kpi-card">
+                    <h3>Riesgo Climático</h3>
+                    <span class="kpi-value" id="risk-value">--</span>
+                </div>
+                <div class="card kpi-card">
+                    <h3>Fecha Óptima de Cosecha</h3>
+                    <span class="kpi-value" id="harvest-date" style="font-size: 1.5rem;">--</span>
+                </div>
+            </div>
+            <div class="card chart-container">
+                <canvas id="forecast-chart"></canvas>
+            </div>
+            <div class="card recommendations">
+                <h3>Recomendaciones del Modelo</h3>
+                <ul id="recommendation-list">
+                    <li style="justify-content: center; color: #9ca3af;">Configure los parámetros y ejecute la predicción.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- ELEMENTOS DEL DOM ---
+    const ui = {
+        runBtn: document.getElementById('run-prediction-btn'),
+        yieldValue: document.getElementById('yield-value'),
+        riskValue: document.getElementById('risk-value'),
+        harvestDate: document.getElementById('harvest-date'),
+        chartCanvas: document.getElementById('forecast-chart'),
+        recommendationList: document.getElementById('recommendation-list'),
+        inputs: {
+            cropType: document.getElementById('crop-type'),
+            plantingDate: document.getElementById('planting-date'),
+            soilType: document.getElementById('soil-type'),
+            soilPh: document.getElementById('soil-ph'),
+            fertilizerPlan: document.getElementById('fertilizer-plan'),
+        }
+    };
+    
+    let forecastChart = null;
+
+    // --- PERFILES DE CULTIVOS (BASE DEL MODELO) ---
+    const CROP_PROFILES = {
+        maize: { name: "Maíz", baseYield: 8.0, cycleDays: 120, idealTemp: [20, 30], idealPh: [6.0, 7.2] },
+        potato: { name: "Papa", baseYield: 30.0, cycleDays: 90, idealTemp: [14, 20], idealPh: [5.5, 6.5] },
+        coffee: { name: "Café", baseYield: 1.5, cycleDays: 240, idealTemp: [18, 24], idealPh: [6.0, 6.5] }
+    };
+
+    // --- LÓGICA PRINCIPAL ---
+    async function runPrediction() {
+        ui.runBtn.classList.add('loading');
+        ui.runBtn.disabled = true;
+
+        try {
+            const inputs = getInputs();
+            if (!inputs.plantingDate) {
+                alert("Por favor, seleccione una fecha de siembra.");
+                throw new Error("No planting date");
+            }
+
+            const weatherData = await fetchWeatherData();
+            const prediction = processPrediction(inputs, weatherData);
+            updateUI(prediction, weatherData);
+            
+        } catch (error) {
+            console.error("Error en la predicción:", error);
+            if (error.message !== "No planting date") {
+                ui.recommendationList.innerHTML = `<li><span class="rec-icon">⚠️</span><span class="rec-text"><strong>Error al obtener datos</strong>No se pudo conectar con el servicio de pronóstico. Intente de nuevo más tarde.</span></li>`;
+            }
+        } finally {
+            ui.runBtn.classList.remove('loading');
+            ui.runBtn.disabled = false;
+        }
+    }
+
+    function getInputs() {
+        return {
+            cropType: ui.inputs.cropType.value,
+            plantingDate: ui.inputs.plantingDate.value ? new Date(ui.inputs.plantingDate.value + 'T00:00:00') : null,
+            soilType: ui.inputs.soilType.value,
+            soilPh: parseFloat(ui.inputs.soilPh.value),
+            fertilizerPlan: ui.inputs.fertilizerPlan.value,
+        };
+    }
+
+    async function fetchWeatherData() {
+        // Coordenadas para la Sabana de Bogotá como ejemplo
+        const lat = 4.711;
+        const lon = -74.072;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_mean&timezone=auto`;
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("API request failed");
+        return await response.json();
+    }
+
+    function processPrediction(inputs, weather) {
+        const profile = CROP_PROFILES[inputs.cropType];
+        let yieldModifier = 1.0;
+        let riskEvents = 0;
+        let recommendations = [];
+
+        // 1. Ajuste por suelo
+        if (inputs.soilPh < profile.idealPh[0] || inputs.soilPh > profile.idealPh[1]) yieldModifier *= 0.9;
+        if (inputs.soilType === 'sandy') yieldModifier *= 0.95; // Suelo arenoso retiene menos agua
+
+        // 2. Ajuste por fertilización
+        if (inputs.fertilizerPlan === 'basic') yieldModifier *= 0.85;
+        if (inputs.fertilizerPlan === 'organic') yieldModifier *= 0.9;
+        
+        // 3. Simulación basada en clima
+        weather.daily.time.forEach((day, i) => {
+            const tempMax = weather.daily.temperature_2m_max[i];
+            const tempMin = weather.daily.temperature_2m_min[i];
+            const precipProb = weather.daily.precipitation_probability_mean[i];
+
+            // Estrés térmico
+            if (tempMax > profile.idealTemp[1] + 2 || tempMin < profile.idealTemp[0] - 2) {
+                yieldModifier *= 0.995; // Pequeña penalización por día fuera de rango
+                riskEvents++;
+            }
+            // Alerta de Helada (especialmente para papa y café)
+            if (tempMin < 5 && (inputs.cropType === 'potato' || inputs.cropType === 'coffee')) {
+                recommendations.push({ type: 'bad', icon: '❄️', title: `Posible Helada el ${day}`, text: `Se espera una temperatura mínima de ${tempMin}°C. Active sistemas de protección.` });
+                riskEvents += 2;
+            }
+
+            // Estrés hídrico
+            if (precipProb < 20 && tempMax > profile.idealTemp[1]) {
+                yieldModifier *= 0.99;
+                if (i > 3 && i < 10) { // No recomendar riego todos los días
+                     recommendations.push({ type: 'warn', icon: '💧', title: `Estrés Hídrico Previsto para el ${day}`, text: `Baja probabilidad de lluvia y altas temperaturas. Programe riego.` });
+                }
+                riskEvents++;
+            }
+
+            // Oportunidad de fertilización
+            if (precipProb > 50 && precipProb < 80 && i > 2 && i < 8) {
+                recommendations.push({ type: 'good', icon: '✅', title: `Condiciones Ideales el ${day}`, text: `Humedad adecuada para aplicar fertilizantes y maximizar su absorción.` });
+            }
+        });
+
+        // 4. Cálculo de resultados finales
+        const estimatedYield = profile.baseYield * yieldModifier;
+        let riskLevel = "Bajo";
+        if (riskEvents > 5) riskLevel = "Medio";
+        if (riskEvents > 10) riskLevel = "Alto";
+        
+        let harvestDate = new Date(inputs.plantingDate);
+        harvestDate.setDate(harvestDate.getDate() + profile.cycleDays);
+
+        if(recommendations.length === 0){
+             recommendations.push({ type: 'good', icon: '☀️', title: `Pronóstico Favorable`, text: `Las condiciones climáticas en los próximos 14 días parecen estables para su cultivo.` });
+        }
+
+        return {
+            yield: estimatedYield.toFixed(1),
+            risk: riskLevel,
+            harvestDate: harvestDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
+            recommendations: recommendations.slice(0, 5) // Limitar a 5 recomendaciones
+        };
+    }
+
+    function updateUI(prediction, weather) {
+        ui.yieldValue.innerHTML = `${prediction.yield} <span style="font-size: 1rem; color: #9ca3af;">ton/ha</span>`;
+        ui.riskValue.textContent = prediction.risk;
+        ui.riskValue.dataset.risk = prediction.risk;
+        ui.harvestDate.textContent = prediction.harvestDate;
+
+        // Actualizar recomendaciones
+        ui.recommendationList.innerHTML = '';
+        prediction.recommendations.forEach(rec => {
+            const li = document.createElement('li');
+            const iconColor = `var(--status-${rec.type})`;
+            li.innerHTML = `
+                <span class="rec-icon" style="color: ${iconColor};">${rec.icon}</span>
+                <span class="rec-text"><strong>${rec.title}</strong> ${rec.text}</span>
+            `;
+            ui.recommendationList.appendChild(li);
+        });
+
+        // Actualizar gráfico
+        if (forecastChart) forecastChart.destroy();
+        
+        const labels = weather.daily.time.map(d => new Date(d+'T00:00:00').toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }));
+        const chartData = {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Temp. Máx (°C)',
+                    data: weather.daily.temperature_2m_max,
+                    borderColor: 'rgba(239, 68, 68, 0.8)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    tension: 0.3,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Temp. Mín (°C)',
+                    data: weather.daily.temperature_2m_min,
+                    borderColor: 'rgba(59, 130, 246, 0.8)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    tension: 0.3,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Precipitación (%)',
+                    data: weather.daily.precipitation_probability_mean,
+                    backgroundColor: 'rgba(34, 197, 94, 0.5)',
+                    type: 'bar',
+                    yAxisID: 'y1'
+                }
+            ]
+        };
+
+        forecastChart = new Chart(ui.chartCanvas, {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#d1d5db' } } },
+                scales: {
+                    x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
+                    y: { type: 'linear', position: 'left', ticks: { color: '#9ca3af' }, grid: { color: '#374151' }, title: { display: true, text: 'Temperatura (°C)', color: '#d1d5db'} },
+                    y1: { type: 'linear', position: 'right', ticks: { color: '#9ca3af' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Prob. Lluvia (%)', color: '#d1d5db'} }
+                }
+            }
+        });
+    }
+
+    // --- INICIALIZACIÓN Y EVENTOS ---
+    ui.inputs.plantingDate.valueAsDate = new Date(); // Poner fecha de hoy por defecto
+    ui.runBtn.addEventListener('click', runPrediction);
+});
+</script>
+
+</body>
+</html>

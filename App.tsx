@@ -1,5 +1,3 @@
-
-
 import React, { useState, MouseEvent, ReactNode, useEffect } from 'react';
 import type { Project, TeamMember, Client, Testimonial } from './types';
 import { PROJECTS, TEAM_MEMBERS, SOLUTIONS, CLIENTS, TESTIMONIALS } from './constants';
@@ -7,7 +5,7 @@ import { PROJECTS, TEAM_MEMBERS, SOLUTIONS, CLIENTS, TESTIMONIALS } from './cons
 type Page = 'home' | 'about' | 'solutions' | 'projects' | 'clients' | 'contact';
 
 // Logo as a Base64 URL to avoid needing an extra file
-const LOGO_URL = 'LogoClean.png';
+const LOGO_URL = 'static/LogoClean.png';
 
 
 // Reusable Components
@@ -87,7 +85,7 @@ const Header: React.FC<{ currentPage: Page, setCurrentPage: (page: Page) => void
             <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'header-glass mt-0' : 'bg-transparent mt-2'}`}>
                 <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
                     <a href="#" onClick={(e) => handleNavClick(e, 'home')} className="flex items-center">
-                        <img src={LOGO_URL} alt="INCEITA Logo" className="h-12 w-auto"/>
+                        <img src={LOGO_URL} alt="CEITECH Logo" className="h-12 w-auto"/>
                     </a>
                     <div className="hidden md:flex items-center space-x-1">
                         {navLinks.map((link) => (
@@ -123,7 +121,7 @@ const Header: React.FC<{ currentPage: Page, setCurrentPage: (page: Page) => void
               <div className={`absolute top-0 right-0 bottom-0 flex flex-col w-full max-w-xs p-2 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="glass-card flex-grow flex flex-col p-6 shadow-2xl">
                     <div className="flex items-center justify-between mb-8">
-                       <img src={LOGO_URL} alt="INCEITA Logo" className="h-6 w-auto"/>
+                       <img src={LOGO_URL} alt="CEITECH Logo" className="h-6 w-auto"/>
                         <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2 rounded-md" aria-label="Cerrar menú">
                             <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -158,13 +156,15 @@ const Header: React.FC<{ currentPage: Page, setCurrentPage: (page: Page) => void
 const Footer: React.FC = () => (
     <footer className="bg-dark-800 m-2 md:m-4 lg:m-6 mt-auto rounded-2xl border border-dark-700">
         <div className="container mx-auto px-6 py-6 text-center text-gray-400">
-            <p>&copy; {new Date().getFullYear()} INCEITA. Todos los derechos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} CEITECH. Todos los derechos reservados.</p>
             <p className="text-sm text-gray-500 mt-1">Soluciones tecnológicas avanzadas para el agro, la industria y la ciencia.</p>
         </div>
     </footer>
 );
 
-const ProjectModal: React.FC<{ project: Project | null; onClose: () => void }> = ({ project, onClose }) => {
+
+// MODIFICADO: Añadimos una nueva prop `onShowDemo`
+const ProjectModal: React.FC<{ project: Project | null; onClose: () => void; onShowDemo: (url: string) => void }> = ({ project, onClose, onShowDemo }) => {
   if (!project) return null;
 
   return (
@@ -197,23 +197,47 @@ const ProjectModal: React.FC<{ project: Project | null; onClose: () => void }> =
           </div>
 
             <div className="mt-10 border-t border-dark-700 pt-8 flex flex-col sm:flex-row justify-center gap-4">
-               <ActionButton
-                  as="a"
-                  href={project.demoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-              >
-                  Ver Demo
-              </ActionButton>
-               <ActionButton as="a" href="#" variant="secondary">
-                  Descargar Ficha Técnica (PDF)
-              </ActionButton>
+               {/* MODIFICADO: El botón ahora es condicional y usa onShowDemo */}
+               {project.demoUrl && (
+                  <ActionButton
+                    onClick={() => onShowDemo(project.demoUrl!)}
+                  >
+                    Ver Demo Interactiva
+                  </ActionButton>
+               )}
             </div>
         </div>
       </div>
     </div>
   );
 };
+
+// NUEVO: Componente para mostrar la demo en un iframe
+const DemoModal: React.FC<{ demoUrl: string | null; onClose: () => void }> = ({ demoUrl, onClose }) => {
+  if (!demoUrl) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-dark-800 border border-dark-700 rounded-lg w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-scale-in-up" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-4 border-b border-dark-600 shrink-0">
+          <h3 className="text-lg font-semibold text-gray-200">Vista Previa de la Demo</h3>
+          <button onClick={onClose} className="bg-dark-700 rounded-full p-2 hover:bg-dark-600 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="flex-grow bg-white">
+          <iframe
+            src={demoUrl}
+            title="Project Demo"
+            className="w-full h-full border-0"
+            sandbox="allow-scripts allow-same-origin" // Por seguridad
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // Page Components
 
@@ -294,7 +318,7 @@ const AboutPage: React.FC = () => (
             <div className="glass-card p-8 md:p-10 text-center">
                 <h3 className="text-2xl font-bold text-gray-100">Nuestra Historia</h3>
                 <p className="text-gray-400 mt-4">
-                    INCEITA nació de la convergencia entre la academia y la industria, con el objetivo de cerrar la brecha entre la investigación científica y las aplicaciones comerciales. Fundada por expertos con décadas de experiencia, nuestra misión es aplicar el conocimiento de vanguardia para generar un impacto tangible y positivo en la sociedad y el medio ambiente.
+                    CEITECH nació de la convergencia entre la academia y la industria, con el objetivo de cerrar la brecha entre la investigación científica y las aplicaciones comerciales. Fundada por expertos con décadas de experiencia, nuestra misión es aplicar el conocimiento de vanguardia para generar un impacto tangible y positivo en la sociedad y el medio ambiente.
                 </p>
             </div>
             <div className="grid md:grid-cols-2 gap-8">
@@ -337,12 +361,12 @@ const SolutionsPage: React.FC<{setCurrentPage: (page: Page) => void}> = ({setCur
     },{
       title: 'IA Aplicada',
       description: 'Modelos de Machine Learning y Visión por Computador para predecir, detectar y automatizar.',
-      imageUrl: 'https://images.unsplash.com/photo-1620712943543-aebc69232d61?q=80&w=2070&auto=format&fit=crop',
+      imageUrl: 'static/Industry.png',
       link: 'projects'
     },{
       title: 'Robótica e IoT',
       description: 'Diseño y fabricación de dispositivos a medida, integrando hardware y software.',
-      imageUrl: 'https://images.unsplash.com/photo-1581092921447-4a0b3d9d7b0a?q=80&w=2070&auto=format&fit=crop',
+      imageUrl: 'static/IoT.png',
       link: 'projects'
     },{
       title: 'I+D+i',
@@ -360,8 +384,8 @@ const SolutionsPage: React.FC<{setCurrentPage: (page: Page) => void}> = ({setCur
       'md:col-span-2 md:row-span-2', // AgroTech (Bigger)
       'md:col-span-3', // IA (Rectangle)
       'md:col-span-3', // Robótica (Rectangle)
-      'md:col-span-2 md:row-span-2', // I+D+i (Bigger)
-      'md:col-span-5', // Capacitación (Full Width)
+      'md:col-span-3', // I+D+i (Bigger)
+      'md:col-span-2', // Capacitación (Full Width)
     ];
 
     return (
@@ -397,16 +421,16 @@ const SolutionsPage: React.FC<{setCurrentPage: (page: Page) => void}> = ({setCur
 const ProjectsPage: React.FC<{handleProjectClick: (project: Project) => void}> = ({handleProjectClick}) => {
     const projectGridClasses = [
       'lg:col-span-2', 
-      '', 
-      '', 
+      '',
+      '',  
       'lg:col-span-2',
-      '', 
-      'lg:col-span-2', 
+      'lg:col-span-2',      
+      '',
     ];
 
     return (
     <PageWrapper
-        title="Proyectos Destacados"
+        title="Portafolio de Soluciones"
         subtitle="Casos de éxito que demuestran cómo nuestra tecnología genera valor real y tangible para nuestros clientes en diversos sectores."
     >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -466,7 +490,7 @@ const ContactPage: React.FC = () => (
             <div className="lg:col-span-2 animate-fade-in-up">
                 <h3 className="text-2xl font-bold text-gray-100">Información de Contacto</h3>
                 <div className="mt-6 space-y-4 text-gray-300">
-                    <p className="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg><span>contacto@inceita.com</span></p>
+                    <p className="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg><span>contacto@CEITECH.com</span></p>
                     <p className="flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-400" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v1.586l3.293-3.293a1 1 0 111.414 1.414L12.414 7H14a1 1 0 110 2h-4a1 1 0 01-1-1V4a1 1 0 011-1z" /><path d="M10 8a2 2 0 100 4 2 2 0 000-4z" /><path d="M3.293 9.293a1 1 0 011.414 0L7 11.586V10a1 1 0 112 0v4a1 1 0 01-1 1H4a1 1 0 110-2h1.586l-2.293-2.293a1 1 0 010-1.414z" /></svg><span>+57 310 123 4567</span></p>
                     <p className="flex items-start gap-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-400 shrink-0 mt-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg><span>Bogotá, Colombia</span></p>
                 </div>
@@ -514,9 +538,11 @@ const ContactPage: React.FC = () => (
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('home');
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
-    // Add a slight delay to the initial page load animation
     const [isReady, setIsReady] = useState(false);
+    
+    // NUEVO: Estado para controlar el modal de la demo
+    const [demoUrlToDisplay, setDemoUrlToDisplay] = useState<string | null>(null);
+
     useEffect(() => {
         const timer = setTimeout(() => setIsReady(true), 100);
         return () => clearTimeout(timer);
@@ -528,6 +554,15 @@ const App: React.FC = () => {
 
     const handleCloseModal = () => {
         setSelectedProject(null);
+    };
+
+    // NUEVO: Handlers para abrir y cerrar el modal de la demo
+    const handleShowDemo = (url: string) => {
+        setDemoUrlToDisplay(url);
+    };
+
+    const handleCloseDemo = () => {
+        setDemoUrlToDisplay(null);
     };
 
     const renderPage = () => {
@@ -556,7 +591,16 @@ const App: React.FC = () => {
                 {renderPage()}
             </main>
             <Footer />
-            <ProjectModal project={selectedProject} onClose={handleCloseModal} />
+            
+            {/* MODIFICADO: Pasamos el handler onShowDemo al ProjectModal */}
+            <ProjectModal 
+              project={selectedProject} 
+              onClose={handleCloseModal} 
+              onShowDemo={handleShowDemo} 
+            />
+
+            {/* NUEVO: Renderizamos el DemoModal aquí */}
+            <DemoModal demoUrl={demoUrlToDisplay} onClose={handleCloseDemo} />
         </div>
     );
 };

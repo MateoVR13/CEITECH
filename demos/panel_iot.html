@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación: Panel de Monitoreo IoT para Cultivos</title>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+        :root {
+            --bg-color: #111827;
+            --surface-color: #1f2937;
+            --border-color: #374151;
+            --text-color: #d1d5db;
+            --accent-color: #3b82f6;
+            --status-good: #22c55e;
+            --status-warn: #f59e0b;
+            --status-bad: #ef4444;
+            --map-stroke-color: #0ea5e9; /* Cian */
+        }
+
+        body, html {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .simulation-container {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+            height: 95%;
+            max-height: 800px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        h1 {
+            margin: 0;
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            text-align: center;
+            font-size: 1.5rem;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            gap: 1.5rem;
+            min-height: 0;
+        }
+
+        /* --- Map Section --- */
+        .map-container {
+            flex: 1.2;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .map-svg-wrapper {
+            position: relative;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #0d1117;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .map-svg-wrapper::after { /* Heatmap Overlay */
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            background: radial-gradient(circle, var(--heatmap-color, transparent) 0%, transparent 70%);
+            opacity: var(--heatmap-opacity, 0);
+            transition: background 0.5s ease, opacity 0.5s ease;
+            pointer-events: none;
+        }
+        
+        #zones-map {
+            width: 90%;
+            max-height: 100%;
+        }
+        
+        .zone-shape {
+            fill: rgba(31, 41, 55, 0.5); /* gray-800/50 */
+            stroke: var(--map-stroke-color);
+            stroke-width: 2;
+            cursor: pointer;
+            transition: fill 0.3s ease, stroke-width 0.3s ease;
+        }
+
+        .zone-shape:hover {
+            fill: rgba(14, 165, 233, 0.3);
+        }
+
+        .zone-shape.active {
+            fill: rgba(14, 165, 233, 0.4);
+            stroke-width: 4;
+            filter: drop-shadow(0 0 10px var(--map-stroke-color));
+        }
+
+        .zone-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 16px;
+            fill: white;
+            font-weight: bold;
+            text-anchor: middle; /* Centrar texto horizontalmente */
+            dominant-baseline: middle; /* Centrar texto verticalmente */
+            pointer-events: none; /* Permite hacer clic a través del texto */
+            filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));
+        }
+
+
+        /* --- Sidebar Section --- */
+        .sidebar {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 350px;
+            min-height: 0;
+        }
+        
+        .card {
+            background-color: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+        .card h3 { margin: 0 0 1rem 0; font-size: 1.2rem; }
+
+        .zone-selector ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .zone-selector li { padding: 0.5rem 1rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; font-weight: 500; }
+        .zone-selector li:hover { background-color: var(--surface-color); }
+        .zone-selector li.active { background-color: var(--accent-color); border-color: var(--accent-color); color: white; }
+
+        .sensor-display { flex-grow: 1; min-height: 0; overflow-y: auto; padding-right: 5px; }
+        .sensor-display h3 { display: flex; justify-content: space-between; align-items: center; }
+        
+        .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+        
+        .sensor-card { background: var(--surface-color); padding: 1rem; border-radius: 8px; text-align: center; }
+        .sensor-card h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #9ca3af; }
+        .sensor-value { font-size: 1.75rem; font-weight: 700; font-family: 'Space Grotesk'; }
+        .sensor-unit { font-size: 1rem; color: #9ca3af; margin-left: 4px; }
+        .sensor-status { display: block; margin-top: 0.5rem; font-size: 0.8rem; font-weight: 500; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .sensor-status[data-status="normal"] { background-color: #166534; color: #bbf7d0; }
+        .sensor-status[data-status="warn"] { background-color: #92400e; color: #fde68a; }
+        .sensor-status[data-status="bad"] { background-color: #991b1b; color: #fecaca; }
+
+        /* Scrollbar */
+        .sensor-display::-webkit-scrollbar { width: 6px; }
+        .sensor-display::-webkit-scrollbar-track { background: transparent; }
+        .sensor-display::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        /* Responsive */
+        @media (max-width: 800px) {
+            .main-content { flex-direction: column; }
+            .sidebar { min-width: unset; }
+            .simulation-container { height: 98%; padding: 1rem; }
+            h1 { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="simulation-container">
+    <h1>Panel de Monitoreo de Sensores IoT</h1>
+    
+    <div class="main-content">
+        <div class="map-container">
+            <div class="card zone-selector">
+                <h3>Seleccionar Zona</h3>
+                <ul id="zone-list"></ul>
+            </div>
+            <div class="map-svg-wrapper" id="heatmap-container">
+                <svg id="zones-map" viewBox="0 0 500 400">
+                    <!-- Nuevas formas poligonales para las zonas -->
+                    <g>
+                        <path id="zone-shape-1" data-zone-id="1" class="zone-shape" d="M 30 40 L 250 20 L 250 180 L 120 200 L 30 150 Z"></path>
+                        <path id="zone-shape-2" data-zone-id="2" class="zone-shape" d="M 250 20 L 470 40 L 470 150 L 250 180 Z"></path>
+                        <path id="zone-shape-3" data-zone-id="3" class="zone-shape" d="M 30 150 L 120 200 L 120 380 L 30 350 Z"></path>
+                        <path id="zone-shape-4" data-zone-id="4" class="zone-shape" d="M 120 200 L 250 180 L 340 220 L 340 380 L 120 380 Z"></path>
+                        <path id="zone-shape-5" data-zone-id="5" class="zone-shape" d="M 250 180 L 470 150 L 470 350 L 340 380 L 340 220 Z"></path>
+                    </g>
+                    <!-- Etiquetas de texto para las zonas -->
+                    <g>
+                        <text class="zone-label" x="145" y="115">Zona A</text>
+                        <text class="zone-label" x="360" y="100">Zona B</text>
+                        <text class="zone-label" x="75" y="255">Zona C</text>
+                        <text class="zone-label" x="230" y="285">Zona D</text>
+                        <text class="zone-label" x="405" y="260">Zona E</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="card sensor-display">
+                <h3><span id="current-zone-name"></span></h3>
+                <div class="sensor-grid">
+                    <div class="sensor-card"><h4>Humedad Suelo</h4><div><span class="sensor-value" id="soil-moisture-value">--</span><span class="sensor-unit">%</span></div><span class="sensor-status" id="soil-moisture-status">--</span></div>
+                    <div class="sensor-card"><h4>Temperatura</h4><div><span class="sensor-value" id="temperature-value">--</span><span class="sensor-unit">°C</span></div><span class="sensor-status" id="temperature-status">--</span></div>
+                    <div class="sensor-card"><h4>pH del Suelo</h4><div><span class="sensor-value" id="ph-value">--</span><span class="sensor-unit"></span></div><span class="sensor-status" id="ph-status">--</span></div>
+                    <div class="sensor-card"><h4>Conductividad</h4><div><span class="sensor-value" id="conductivity-value">--</span><span class="sensor-unit">dS/m</span></div><span class="sensor-status" id="conductivity-status">--</span></div>
+                    <div class="sensor-card"><h4>Salinidad</h4><div><span class="sensor-value" id="salinity-value">--</span><span class="sensor-unit">ppm</span></div><span class="sensor-status" id="salinity-status">--</span></div>
+                    <div class="sensor-card"><h4>Humedad Aire</h4><div><span class="sensor-value" id="humidity-value">--</span><span class="sensor-unit">%</span></div><span class="sensor-status" id="humidity-status">--</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ZONES_DATA = {
+        1: { name: 'Zona A - Tomates', base: { soilMoisture: 45, temp: 24, ph: 6.5, conductivity: 1.8, salinity: 800, humidity: 65 } },
+        2: { name: 'Zona B - Lechugas', base: { soilMoisture: 60, temp: 19, ph: 6.2, conductivity: 1.4, salinity: 650, humidity: 75 } },
+        3: { name: 'Zona C - Maíz', base: { soilMoisture: 35, temp: 28, ph: 6.8, conductivity: 1.1, salinity: 500, humidity: 55 } },
+        4: { name: 'Zona D - Papas', base: { soilMoisture: 55, temp: 16, ph: 5.8, conductivity: 2.1, salinity: 950, humidity: 80 } },
+        5: { name: 'Zona E - Invernadero', base: { soilMoisture: 50, temp: 22, ph: 6.0, conductivity: 1.6, salinity: 700, humidity: 70 } },
+    };
+
+    const ui = {
+        zoneList: document.getElementById('zone-list'),
+        zoneName: document.getElementById('current-zone-name'),
+        heatmap: document.getElementById('heatmap-container'),
+        sensors: {
+            soilMoisture: { val: document.getElementById('soil-moisture-value'), status: document.getElementById('soil-moisture-status') },
+            temperature: { val: document.getElementById('temperature-value'), status: document.getElementById('temperature-status') },
+            ph: { val: document.getElementById('ph-value'), status: document.getElementById('ph-status') },
+            conductivity: { val: document.getElementById('conductivity-value'), status: document.getElementById('conductivity-status') },
+            salinity: { val: document.getElementById('salinity-value'), status: document.getElementById('salinity-status') },
+            humidity: { val: document.getElementById('humidity-value'), status: document.getElementById('humidity-status') },
+        }
+    };
+    
+    let state = {
+        currentZoneId: null,
+        updateInterval: null
+    };
+
+    function setupZoneSelector() {
+        Object.keys(ZONES_DATA).forEach(function(zoneId) {
+            const data = ZONES_DATA[zoneId];
+            const li = document.createElement('li');
+            li.textContent = 'Zona ' + zoneId; // Nombres más cortos para la lista
+            li.dataset.zoneId = zoneId;
+            ui.zoneList.appendChild(li);
+
+            li.addEventListener('click', function() { selectZone(zoneId); });
+            document.getElementById('zone-shape-' + zoneId).addEventListener('click', function() { selectZone(zoneId); });
+        });
+    }
+
+    function selectZone(zoneId) {
+        if (state.currentZoneId === zoneId) return;
+        state.currentZoneId = zoneId;
+
+        document.querySelectorAll('#zone-list li').forEach(function(li) {
+            li.classList.toggle('active', li.dataset.zoneId === zoneId);
+        });
+        
+        document.querySelectorAll('#zones-map .zone-shape').forEach(function(shape) {
+            shape.classList.toggle('active', shape.dataset.zoneId === zoneId);
+        });
+
+        ui.zoneName.textContent = ZONES_DATA[zoneId].name;
+        
+        updateAllSensorReadings();
+        
+        clearInterval(state.updateInterval);
+        state.updateInterval = setInterval(updateAllSensorReadings, 2000);
+    }
+
+    function updateAllSensorReadings() {
+        if (!state.currentZoneId) return;
+        const baseData = ZONES_DATA[state.currentZoneId].base;
+        
+        const soilMoisture = baseData.soilMoisture + (Math.random() - 0.5) * 2;
+        const temperature = baseData.temp + (Math.random() - 0.5);
+        const ph = baseData.ph + (Math.random() - 0.5) * 0.1;
+        const conductivity = baseData.conductivity + (Math.random() - 0.5) * 0.1;
+        const salinity = baseData.salinity + (Math.random() - 0.5) * 20;
+        const humidity = baseData.humidity + (Math.random() - 0.5) * 3;
+        
+        updateSensorUI('soilMoisture', soilMoisture, 40, 70);
+        updateSensorUI('temperature', temperature, 18, 26);
+        updateSensorUI('ph', ph, 6.0, 7.0);
+        updateSensorUI('conductivity', conductivity, 1.2, 2.2);
+        updateSensorUI('salinity', salinity, 400, 1000);
+        updateSensorUI('humidity', humidity, 60, 80);
+        
+        updateHeatmap(temperature);
+    }
+
+    function updateSensorUI(sensorKey, value, optimalLow, optimalHigh) {
+        const uiElements = ui.sensors[sensorKey];
+        uiElements.val.textContent = value.toFixed(sensorKey === 'salinity' ? 0 : 1);
+        
+        let status = 'normal';
+        let statusText = 'Normal';
+        const warnLow = optimalLow * 0.9;
+        const warnHigh = optimalHigh * 1.1;
+
+        if (value < optimalLow || value > optimalHigh) {
+            status = 'warn';
+            statusText = 'Precaución';
+        }
+        if (value < warnLow || value > warnHigh) {
+            status = 'bad';
+            statusText = 'Alerta';
+        }
+        
+        uiElements.status.dataset.status = status;
+        uiElements.status.textContent = statusText;
+    }
+
+    function updateHeatmap(temperature) {
+        let color = 'rgba(59, 130, 246, 0.6)'; // Azul (frío)
+        let opacity = 0.4;
+        if (temperature > 20 && temperature <= 26) { color = 'rgba(34, 197, 94, 0.6)'; opacity = 0.3; } // Verde (óptimo)
+        else if (temperature > 26 && temperature <= 30) { color = 'rgba(245, 158, 11, 0.6)'; opacity = 0.5; } // Ámbar (cálido)
+        else if (temperature > 30) { color = 'rgba(239, 68, 68, 0.6)'; opacity = 0.6; } // Rojo (caliente)
+        
+        ui.heatmap.style.setProperty('--heatmap-color', color);
+        ui.heatmap.style.setProperty('--heatmap-opacity', opacity);
+    }
+    
+    setupZoneSelector();
+    selectZone('1');
+});
+</script>
+
+</body>
+</html>

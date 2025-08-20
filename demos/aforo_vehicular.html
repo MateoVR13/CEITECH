@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visión por Computadora - YOLOv8 con ONNX</title>
+    
+    <!-- Librerías necesarias para ejecutar el modelo ONNX y procesar los datos -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --accent-color: #007aff;
+            --accent-color-vehicle: #5856d6;
+            --shadow-color: rgba(60, 60, 60, 0.15);
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-container {
+            position: relative;
+            width: 90vw;
+            max-width: 1280px;
+            aspect-ratio: 16 / 9;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px var(--shadow-color);
+            background: #000;
+        }
+        #video, #canvas, .video-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        #video { object-fit: cover; z-index: 1; }
+        #canvas { z-index: 5; }
+        .video-overlay {
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        #control-button {
+            font-size: 1.1rem;
+            font-weight: 600;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4);
+            transition: all 0.2s ease;
+        }
+        #control-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 122, 255, 0.5);
+        }
+        #control-button:disabled { cursor: wait; background-color: #a0a0a0; box-shadow: none; }
+        .spinner { border: 3px solid rgba(255, 255, 255, 0.3); border-left-color: #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Debug panel */
+        .debug-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 100;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container">
+        <div class="video-overlay" id="video-overlay">
+            <button id="control-button">
+                <span>Iniciar Análisis</span>
+            </button>
+        </div>
+        <video id="video" loop muted playsinline src="Video.mp4"></video>
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <div class="debug-panel" id="debug-panel">
+        <div>Estado: <span id="status">Esperando...</span></div>
+        <div>FPS: <span id="fps">0</span></div>
+        <div>Detecciones: <span id="detections">0</span></div>
+        <div>Modelo: <span id="model-info">No cargado</span></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const controlButton = document.getElementById('control-button');
+            const videoOverlay = document.getElementById('video-overlay');
+            
+            // Debug elements
+            const statusEl = document.getElementById('status');
+            const fpsEl = document.getElementById('fps');
+            const detectionsEl = document.getElementById('detections');
+            const modelInfoEl = document.getElementById('model-info');
+            
+            const MODEL_URL = './yolov8n.onnx';
+            
+            ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+
+            const YOLO_CLASSES = [
+                'person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck'
+            ];
+
+
+            // Clases que queremos detectar (índices en el array YOLO_CLASSES)
+            const TRAFFIC_CLASSES = {
+                // Personas
+                0: 'person',
+                1: 'bicycle',
+                2: 'car', 
+                3: 'motorcycle',
+                5: 'bus',
+                7: 'truck',
+            };
+            
+            let session = null;
+            let rafId = null;
+            let frameCount = 0;
+            let lastTime = performance.now();
+
+            function updateDebug(detections = 0) {
+                const now = performance.now();
+                frameCount++;
+                
+                if (now - lastTime >= 1000) {
+                    const fps = Math.round(frameCount * 1000 / (now - lastTime));
+                    fpsEl.textContent = fps;
+                    frameCount = 0;
+                    lastTime = now;
+                }
+                
+                detectionsEl.textContent = detections;
+            }
+
+            async function detectFrame() {
+                if (!session || video.paused || video.ended) {
+                    rafId = requestAnimationFrame(detectFrame);
+                    return;
+                }
+
+                try {
+                    statusEl.textContent = 'Procesando...';
+                    
+                    // Crear tensor de entrada con tf.tidy para gestión de memoria
+                    const inputTensor = tf.tidy(() => {
+                        const input = tf.browser.fromPixels(video);
+                        const resized = tf.image.resizeBilinear(input, [640, 640]);
+                        return resized.div(255.0).transpose([2, 0, 1]).expandDims(0);
+                    });
+                    
+                    // Obtener los datos del tensor
+                    const inputData = await inputTensor.data();
+                    inputTensor.dispose(); // Liberar memoria del tensor
+                    
+                    const feeds = { 
+                        images: new ort.Tensor('float32', inputData, [1, 3, 640, 640]) 
+                    };
+                    
+                    // Ejecutar inferencia
+                    const results = await session.run(feeds);
+                    
+                    // Obtener el tensor de salida
+                    const outputName = Object.keys(results)[0];
+                    const outputTensor = results[outputName];
+                    
+                    console.log('Dimensiones de salida:', outputTensor.dims);
+                    
+                    // Procesar las detecciones
+                    const boxes = [];
+                    const output = outputTensor.data;
+                    
+                    // YOLOv8 formato: [batch, 84, 8400] donde 84 = 4 (bbox) + 80 (clases)
+                    const numDetections = outputTensor.dims[2]; // 8400
+                    const numClasses = outputTensor.dims[1] - 4; // 80
+                    
+                    for (let i = 0; i < numDetections; i++) {
+                        // Extraer coordenadas de la caja (cx, cy, w, h)
+                        const cx = output[i];
+                        const cy = output[numDetections + i];
+                        const w = output[2 * numDetections + i];
+                        const h = output[3 * numDetections + i];
+                        
+                        // Encontrar la clase con mayor confianza
+                        let maxScore = 0;
+                        let classId = -1;
+                        
+                        for (let j = 0; j < numClasses; j++) {
+                            const score = output[(4 + j) * numDetections + i];
+                            if (score > maxScore) {
+                                maxScore = score;
+                                classId = j;
+                            }
+                        }
+                        
+                        // Filtrar solo las clases de tráfico que nos interesan
+                        if (maxScore > 0.25 && TRAFFIC_CLASSES.hasOwnProperty(classId)) {
+                            // Convertir de centro-ancho-alto a x1,y1,x2,y2
+                            const x1 = cx - w / 2;
+                            const y1 = cy - h / 2;
+                            const x2 = cx + w / 2;
+                            const y2 = cy + h / 2;
+                            
+                            boxes.push({
+                                x1, y1, x2, y2,
+                                score: maxScore,
+                                classId: classId,
+                                className: TRAFFIC_CLASSES[classId]
+                            });
+                        }
+                    }
+
+                    console.log(`Detecciones encontradas (antes de NMS): ${boxes.length}`);
+                    
+                    // Aplicar Non-Maximum Suppression
+                    let finalBoxes = boxes;
+                    if (boxes.length > 0) {
+                        const boxCoords = boxes.map(box => [box.y1, box.x1, box.y2, box.x2]);
+                        const scores = boxes.map(box => box.score);
+                        
+                        const indices = await tf.image.nonMaxSuppressionAsync(
+                            tf.tensor2d(boxCoords), 
+                            tf.tensor1d(scores), 
+                            50,  // maxOutputSize
+                            0.4, // iouThreshold
+                            0.25 // scoreThreshold
+                        );
+                        
+                        const keepIndices = await indices.data();
+                        finalBoxes = Array.from(keepIndices).map(i => boxes[i]);
+                        indices.dispose();
+                    }
+                    
+                    drawBoxes(finalBoxes);
+                    updateDebug(finalBoxes.length);
+                    statusEl.textContent = 'Ejecutándose';
+                    
+                } catch (error) {
+                    console.error("Error durante la detección:", error);
+                    statusEl.textContent = 'Error';
+                }
+                
+                rafId = requestAnimationFrame(detectFrame);
+            }
+            
+            function drawBoxes(boxes) {
+                // Asegurar que el canvas tenga el mismo tamaño que el video mostrado
+                const rect = video.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                boxes.forEach(box => {
+                    // Escalar desde 640x640 al tamaño actual del video
+                    const scaleX = canvas.width / 640;
+                    const scaleY = canvas.height / 640;
+                    
+                    const x = box.x1 * scaleX;
+                    const y = box.y1 * scaleY;
+                    const width = (box.x2 - box.x1) * scaleX;
+                    const height = (box.y2 - box.y1) * scaleY;
+                    
+                    // Determinar color según la clase
+                    const isPerson = box.className === 'person';
+                    const isVehicle = ['car', 'truck', 'bus', 'motorcycle', 'bicycle'].includes(box.className);
+                    const isTrafficSign = ['traffic light', 'stop sign', 'parking meter'].includes(box.className);
+                    
+                    let color = '#ff6b6b'; // Color por defecto (rojo)
+                    if (isPerson) {
+                        color = '#4ecdc4'; // Turquesa para personas
+                    } else if (isVehicle) {
+                        color = '#45b7d1'; // Azul para vehículos
+                    } else if (isTrafficSign) {
+                        color = '#f39c12'; // Naranja para señales de tráfico
+                    }
+                    
+                    // Dibujar caja
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+                    
+                    // Dibujar etiqueta
+                    const label = `${box.className} ${Math.round(box.score * 100)}%`;
+                    ctx.font = "bold 16px -apple-system";
+                    const textMetrics = ctx.measureText(label);
+                    const textWidth = textMetrics.width;
+                    const textHeight = 20;
+                    
+                    // Fondo de la etiqueta
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y - textHeight, textWidth + 10, textHeight);
+                    
+                    // Texto de la etiqueta
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(label, x + 5, y - 5);
+                });
+            }
+
+            async function startAnalysis() {
+                controlButton.disabled = true;
+                controlButton.innerHTML = `<div class="spinner"></div><span>Cargando Modelo...</span>`;
+                statusEl.textContent = 'Cargando modelo...';
+                
+                try {
+                    console.log('Intentando cargar modelo desde:', MODEL_URL);
+                    session = await ort.InferenceSession.create(MODEL_URL, {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    });
+                    
+                    console.log('Modelo ONNX cargado exitosamente.');
+                    console.log('Nombres de entrada:', session.inputNames);
+                    console.log('Nombres de salida:', session.outputNames);
+                    console.log('Metadatos del modelo:', session);
+                    
+                    modelInfoEl.textContent = `${session.inputNames[0]} → ${session.outputNames[0]}`;
+                    
+                    videoOverlay.style.opacity = '0';
+                    videoOverlay.style.pointerEvents = 'none';
+                    
+                    await video.play();
+                    console.log('Video iniciado, comenzando detección...');
+                    statusEl.textContent = 'Iniciando detección...';
+                    
+                    detectFrame();
+                    
+                } catch (error) {
+                    console.error("Error crítico:", error);
+                    statusEl.textContent = 'Error crítico';
+                    controlButton.innerHTML = `<span>Error - Ver Consola (F12)</span>`;
+                    controlButton.disabled = false;
+                    
+                    // Diagnóstico adicional
+                    console.log('Verificando si el archivo existe...');
+                    fetch(MODEL_URL)
+                        .then(response => {
+                            if (!response.ok) {
+                                console.error(`El archivo ${MODEL_URL} no se encuentra (${response.status})`);
+                            } else {
+                                console.log(`El archivo ${MODEL_URL} existe y es accesible`);
+                            }
+                        })
+                        .catch(fetchError => {
+                            console.error('Error al verificar el archivo:', fetchError);
+                        });
+                }
+            }
+            
+            controlButton.addEventListener('click', startAnalysis);
+            
+            // Ajustar canvas cuando cambie el tamaño de la ventana
+            window.addEventListener('resize', () => {
+                if (session && !video.paused) {
+                    const rect = video.getBoundingClientRect();
+                    canvas.width = rect.width;
+                    canvas.height = rect.height;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
