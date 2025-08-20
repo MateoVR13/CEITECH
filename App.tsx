@@ -251,7 +251,7 @@ const HomePage: React.FC<{setCurrentPage: (page: Page) => void}> = ({setCurrentP
     
     return (
     <>
-      <section className="relative h-screen min-h-[600px] flex items-center justify-center text-white animate-fade-in-up">
+      <section className="relative h-screen min-h-[600px] flex items-center justify-center text-white animate-fade-in-up pt-24 md:pt-0">
         <div className="absolute inset-0 z-0">
           <img src="https://images.unsplash.com/photo-1560493676-04071c5f467b?q=80&w=1974&auto=format&fit=crop" alt="Campo tecnológico" className="w-full h-full object-cover"/>
           <div className="absolute inset-0 bg-black/70"></div>
