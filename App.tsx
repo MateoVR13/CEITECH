@@ -333,21 +333,23 @@ const AboutPage: React.FC = () => (
             </div>
         </div>
 
+            
         <div className="mt-24">
             <h2 className="text-center text-3xl md:text-4xl font-extrabold text-gray-100 mb-16">Un Equipo Multidisciplinario</h2>
-             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-y-20 gap-x-8">
-               {TEAM_MEMBERS.map((member, index) => (
-                  <div key={member.name} style={{ animationDelay: `${index * 100}ms` }} className="glass-card text-center transition-all duration-300 hover:scale-105 hover:shadow-neon-blue pt-16 p-6 flex flex-col h-full relative animate-fade-in-up opacity-0">
-                    <img src={member.imageUrl} alt={member.name} className="w-28 h-28 rounded-full mx-auto absolute -top-14 left-1/2 -translate-x-1/2 border-4 border-dark-800/80 shadow-xl object-cover bg-dark-700" />
-                    <div className="flex-grow flex flex-col justify-center">
-                        <h3 className="text-xl font-bold text-gray-100 mt-4">{member.name}</h3>
-                        <p className="text-sky-400 font-semibold text-sm mt-1">{member.title}</p>
-                        <p className="text-gray-400 text-sm mt-4 flex-grow">{member.description}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-20 gap-x-8">
+                {TEAM_MEMBERS.map((member, index) => (
+                    <div key={member.name} style={{ animationDelay: `${index * 100}ms` }} className="glass-card text-center transition-all duration-300 hover:scale-105 hover:shadow-neon-blue pt-16 p-6 flex flex-col h-full relative animate-fade-in-up opacity-0">
+                        <img src={member.imageUrl} alt={member.name} className="w-28 h-28 rounded-full mx-auto absolute -top-14 left-1/2 -translate-x-1/2 border-4 border-dark-800/80 shadow-xl object-cover bg-dark-700" />
+                        <div className="flex-grow flex flex-col justify-center">
+                            <h3 className="text-xl font-bold text-gray-100 mt-4">{member.name}</h3>
+                            <p className="text-sky-400 font-semibold text-sm mt-1">{member.title}</p>
+                            <p className="text-gray-400 text-sm mt-4 flex-grow">{member.description}</p>
+                        </div>
                     </div>
-                  </div>
                 ))}
             </div>
         </div>
+  
     </PageWrapper>
 );
 
